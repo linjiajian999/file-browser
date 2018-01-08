@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minmum-scale=1.0, maxmum-scale=1.0, user-scalable=no">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>share</title>
+  <link rel="stylesheet" href="https://unpkg.com/vue-material@beta/dist/vue-material.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/vue-material@beta/dist/theme/default.css">
+  <link rel="stylesheet" href="./css/index.css">
+  <link rel="stylesheet" href="./css/swiper.css">
+</head>
+<body>
+  <div id="app">
+    <div class="page-header">
+      <span class="md-title" style="color:#fff">目录：{{ current }}</span>
+    </div>
+    <div class="page-content">
+      <md-list>
+        <md-list-item
+          v-for="(file, index) in list"
+          :key="index"
+          @click="fileClick(file)"
+        >
+          <md-icon :class="file.className"></md-icon>
+          <span class="md-list-item-text">{{ file.path }}</span>
+        </md-list-item>
+      </md-list>
+    </div>
+    <md-button class="page-goback md-fab md-primary" @click="goBack">
+      <md-icon class="page-goback-icon"></md-icon>
+    </md-button>
+    <div class="loading" v-show="isLoading">
+      <div class="center" >
+        <md-progress-spinner md-mode="indeterminate">
+        </md-progress-spinner>
+      </div>
+    </div>
+    <div class="page-img-view" v-show="imgList.length && isShowImgView">
+      <swiper :options="swiperOption" ref="mySwiper">
+          <!-- slides -->
+          <swiper-slide v-for="img in imgList">
+            <img :src="img" alt="">
+          </swiper-slide>
+          <!-- Optional controls -->
+          <div class="swiper-pagination"  slot="pagination"></div>
+          <div class="swiper-button-prev" slot="button-prev"></div>
+          <div class="swiper-button-next" slot="button-next"></div>
+          <div class="swiper-scrollbar"   slot="scrollbar"></div>
+        </swiper>
+    </div>
+  </div>
+  <script src="./js/swiper.js"></script>
+  <script src="https://unpkg.com/axios@0.17.1/dist/axios.js"></script>
+  <script src="https://unpkg.com/vue@2.5.13/dist/vue.min.js"></script>
+  <!-- <script src="https://unpkg.com/vue@2.5.13/dist/vue.esm.js"></script> -->
+  <script src="https://unpkg.com/vue-material@beta"></script>
+  <script src="./js/vue.swiper.js"></script>
+  <script>
+  var baseUrl = './'
+  Vue.use(VueMaterial.default)
+  Vue.use(VueAwesomeSwiper)
+  var app = new Vue({
+    el: "#app",
+    data: {
+      list: [],
+      current: '',
+      pre: '',
+      stack: [],
+      isLoading: false,
+      selSrc: '',
+      imgList: [],
+      isShowImgView: false,
+      swiperOption: {
+        loop: true,
+      }
+    },
+    methods: {
+      goBack: function() {
+        if (this.isShowImgView) {
+          this.isShowImgView = false
+          return
+        }
+        if (this.stack.length) {
+          var pre = this.stack.pop()
+          var filePath = pre
+          var isGoback = true
+          this.getList(filePath, isGoback)
+        }
+      },
+      fileClick: function(file) {
+        if (file.isDir) {
+          var filePath
+          if (this.current[this.current.length - 1] === '/') {
+            filePath = this.current + file.path
+          } else {
+            filePath = this.current + '/' + file.path
+          }
+          this.getList(filePath)
+        } else if (checkIsImg(file.path)) {
+          this.selSrc = this.current + '/' + file.path
+          this.isShowImgView = true
+        }
+      },
+      getList: function(filePath, isGoback) {
+        var self = this
+        this.isLoading = true
+        axios.get('/?action=getFile&filePath=' + filePath)
+        .then(function(res) {
+          self.isLoading = false
+          var e = res.data
+          if (e.state !== 'ok') {
+            return
+          }
+          if (!isGoback) {
+            self.stack.push(self.current)
+          }
+          self.pre = self.stack[self.stack.length - 1]
+          self.current = filePath
+          var files = res.data.files
+          var dirList = []
+          var fileList = []
+          var imgList = []
+          for (var i = 0; i < files.length; i++) {
+            var isImg = checkIsImg(files[i].path)
+            files[i].isImg = isImg
+            var className = ''
+            if (files[i].isDir) {
+              className = 'page-dir-icon'
+            } else if (files[i].isImg) {
+              className = 'page-img-icon'
+              imgList.push(filePath + '/' + files[i].path)
+            } else {
+              className = 'page-file-icon'
+            }
+            files[i].className = className
+            if (files[i].isDir) {
+              dirList.push(files[i])
+            } else {
+              fileList.push(files[i])
+            }
+          }
+          fileList.forEach(function(val) {
+            dirList.push(val)
+          })
+          self.imgList = imgList
+          self.list = dirList
+        })
+        .catch(function(err) {
+          self.isLoading = false
+          console.log(err)
+        })
+      }
+    },
+    mounted: function() {
+      this.getList('../')
+    }
+  })
+  function checkIsImg(path) {
+    if (!path) {
+      return false
+    }
+    var splitArr = path.split('.')
+    if (!splitArr.length) {
+      return false
+    }
+    var fix = splitArr[splitArr.length - 1]
+    var imgReg = /(png|jpg|jpeg|gif)/
+    if (imgReg.test(fix)) {
+      return true
+    } else {
+      return false
+    }
+  }
+  </script>
+</body>
+</html>
